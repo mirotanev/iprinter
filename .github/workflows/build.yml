@@ -14,6 +14,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Generate Source Code
         run: |
           mkdir -p app/src/main/java/com/xprinter/directprint
@@ -24,6 +27,7 @@ jobs:
           cat << 'EOF' > gradle.properties
           android.useAndroidX=true
           android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           EOF
 
           # 2. settings.gradle
@@ -46,7 +50,7 @@ jobs:
           include ':app'
           EOF
 
-          # 3. build.gradle
+          # 3. build.gradle (Root)
           cat << 'EOF' > build.gradle
           buildscript {
               repositories {
@@ -60,7 +64,7 @@ jobs:
           }
           EOF
 
-          # 4. app/build.gradle (minSdk 21 за максимална съвместимост)
+          # 4. app/build.gradle с вграден debug подпис
           cat << 'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
@@ -79,8 +83,18 @@ jobs:
                   versionName "1.0"
               }
 
+              signingConfigs {
+                  debug {
+                      storeFile file('debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+
               buildTypes {
                   debug {
+                      signingConfig signingConfigs.debug
                       minifyEnabled false
                       debuggable true
                   }
@@ -101,6 +115,9 @@ jobs:
               implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
           }
           EOF
+
+          # Създаване на стандартен валиден debug ключ
+          keytool -genkey -v -keystore app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
           # 5. AndroidManifest.xml
           cat << 'EOF' > app/src/main/AndroidManifest.xml
