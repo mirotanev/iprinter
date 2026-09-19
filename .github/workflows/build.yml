@@ -5,7 +5,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -14,13 +14,20 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Generate Android Project
+      - name: Generate Source Code
         run: |
           mkdir -p app/src/main/java/com/xprinter/directprint
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
 
-          # 1. settings.gradle
+          # 1. gradle.properties (Активира AndroidX)
+          cat << 'EOF' > gradle.properties
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          EOF
+
+          # 2. settings.gradle
           cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
@@ -40,7 +47,7 @@ jobs:
           include ':app'
           EOF
 
-          # 2. build.gradle (Root)
+          # 3. build.gradle
           cat << 'EOF' > build.gradle
           buildscript {
               repositories {
@@ -54,15 +61,17 @@ jobs:
           }
           EOF
 
-          # 3. app/build.gradle
+          # 4. app/build.gradle
           cat << 'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
               id 'org.jetbrains.kotlin.android'
           }
+
           android {
               namespace 'com.xprinter.directprint'
               compileSdk 34
+
               defaultConfig {
                   applicationId "com.xprinter.directprint"
                   minSdk 24
@@ -70,6 +79,7 @@ jobs:
                   versionCode 1
                   versionName "1.0"
               }
+
               buildTypes {
                   release {
                       minifyEnabled false
@@ -83,6 +93,7 @@ jobs:
                   jvmTarget = '17'
               }
           }
+
           dependencies {
               implementation 'androidx.core:core-ktx:1.12.0'
               implementation 'androidx.appcompat:appcompat:1.6.1'
@@ -91,7 +102,7 @@ jobs:
           }
           EOF
 
-          # 4. AndroidManifest.xml
+          # 5. AndroidManifest.xml
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -114,7 +125,7 @@ jobs:
           </manifest>
           EOF
 
-          # 5. activity_main.xml
+          # 6. activity_main.xml
           cat << 'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -126,7 +137,7 @@ jobs:
               <TextView
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="Xprinter 4B-2064C Wi-Fi"
+                  android:text="Xprinter 4B-2064C"
                   android:textSize="22sp"
                   android:textStyle="bold"
                   android:layout_marginBottom="24dp" />
@@ -134,7 +145,7 @@ jobs:
                   android:id="@+id/etIp"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:hint="IP на принтера (напр. 192.168.1.150)"
+                  android:hint="IP адрес (напр. 192.168.1.150)"
                   android:inputType="phone"
                   android:text="192.168.1.150"
                   android:layout_marginBottom="16dp" />
@@ -142,35 +153,32 @@ jobs:
                   android:id="@+id/btnTestPrint"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:text="Тестов печат (Test Label)"
+                  android:text="Тестов печат"
                   android:layout_marginBottom="12dp" />
               <Button
                   android:id="@+id/btnSelectPdf"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:text="Избери и принтирай PDF"
-                  android:backgroundTint="#2563EB"
-                  android:textColor="#FFFFFF"
+                  android:text="Избери PDF и принтирай"
                   android:layout_marginBottom="24dp" />
               <TextView
                   android:id="@+id/tvStatus"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:text="Готов за работа"
-                  android:textColor="#4B5563"
+                  android:text="Готов"
                   android:gravity="center"
                   android:textSize="14sp" />
           </LinearLayout>
           EOF
 
-          # 6. strings.xml
+          # 7. strings.xml
           cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
               <string name="app_name">Xprinter Direct</string>
           </resources>
           EOF
 
-          # 7. MainActivity.kt
+          # 8. MainActivity.kt
           cat << 'EOF' > app/src/main/java/com/xprinter/directprint/MainActivity.kt
           package com.xprinter.directprint
 
@@ -196,7 +204,7 @@ jobs:
 
               private val pdfPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
                   if (uri != null) {
-                      tvStatus.text = "Файлът е зареден. Подготовка..."
+                      tvStatus.text = "Файлът се обработва..."
                       printPdf(uri)
                   }
               }
@@ -211,9 +219,8 @@ jobs:
                   tvStatus = findViewById(R.id.tvStatus)
 
                   btnSelectPdf.setOnClickListener {
-                      val ip = etIp.text.toString().trim()
-                      if (ip.isEmpty()) {
-                          Toast.makeText(this, "Въведете IP адрес!", Toast.LENGTH_SHORT).show()
+                      if (etIp.text.toString().trim().isEmpty()) {
+                          Toast.makeText(this, "Въведете IP!", Toast.LENGTH_SHORT).show()
                           return@setOnClickListener
                       }
                       pdfPicker.launch("application/pdf")
@@ -222,71 +229,62 @@ jobs:
                   btnTestPrint.setOnClickListener {
                       val ip = etIp.text.toString().trim()
                       if (ip.isEmpty()) {
-                          Toast.makeText(this, "Въведете IP адрес!", Toast.LENGTH_SHORT).show()
+                          Toast.makeText(this, "Въведете IP!", Toast.LENGTH_SHORT).show()
                           return@setOnClickListener
                       }
-                      sendRawTspl(ip, "SIZE 100 mm, 150 mm\r\nGAP 3 mm, 0\r\nCLS\r\nTEXT 50,50,\"3\",0,1,1,\"Xprinter 4B-2064C OK!\"\r\nPRINT 1,1\r\n".toByteArray())
+                      sendRawTspl(ip, "SIZE 100 mm, 150 mm\r\nGAP 3 mm, 0\r\nCLS\r\nTEXT 50,50,\"3\",0,1,1,\"Xprinter Test OK\"\r\nPRINT 1,1\r\n".toByteArray())
                   }
               }
 
               private fun printPdf(uri: Uri) {
                   val ip = etIp.text.toString().trim()
-                  tvStatus.text = "Обработка към 203 DPI..."
                   CoroutineScope(Dispatchers.IO).launch {
                       try {
-                          val pfd: ParcelFileDescriptor = contentResolver.openFileDescriptor(uri, "r") ?: return@launch
+                          val pfd = contentResolver.openFileDescriptor(uri, "r") ?: return@launch
                           val renderer = PdfRenderer(pfd)
                           if (renderer.pageCount > 0) {
                               val page = renderer.openPage(0)
                               val scale = 203f / 72f
-                              val bitmapWidth = (page.width * scale).toInt()
-                              val bitmapHeight = (page.height * scale).toInt()
-                              val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+                              val w = (page.width * scale).toInt()
+                              val h = (page.height * scale).toInt()
+                              val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
                               bitmap.eraseColor(Color.WHITE)
                               page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
                               page.close()
                               renderer.close()
                               pfd.close()
 
-                              val tsplBytes = convertBitmapToTspl(bitmap)
-                              sendRawTspl(ip, tsplBytes)
+                              sendRawTspl(ip, convertBitmapToTspl(bitmap))
                           }
                       } catch (e: Exception) {
-                          withContext(Dispatchers.Main) {
-                              tvStatus.text = "Грешка: ${e.localizedMessage}"
-                          }
+                          withContext(Dispatchers.Main) { tvStatus.text = "Грешка: ${e.message}" }
                       }
                   }
               }
 
               private fun convertBitmapToTspl(bitmap: Bitmap): ByteArray {
-                  val width = bitmap.width
-                  val height = bitmap.height
-                  val widthBytes = (width + 7) / 8
-                  val header = "SIZE 100 mm, 150 mm\r\nGAP 3 mm, 0\r\nCLS\r\nBITMAP 0,0,$widthBytes,$height,0,".toByteArray(Charsets.US_ASCII)
+                  val w = bitmap.width
+                  val h = bitmap.height
+                  val wb = (w + 7) / 8
+                  val header = "SIZE 100 mm, 150 mm\r\nGAP 3 mm, 0\r\nCLS\r\nBITMAP 0,0,$wb,$h,0,".toByteArray(Charsets.US_ASCII)
                   val footer = "\r\nPRINT 1,1\r\n".toByteArray(Charsets.US_ASCII)
-                  val imageBytes = ByteArray(widthBytes * height)
-                  var byteIndex = 0
-                  for (y in 0 until height) {
-                      for (byteX in 0 until widthBytes) {
-                          var currentByte = 0
+                  val bytes = ByteArray(wb * h)
+                  var idx = 0
+                  for (y in 0 until h) {
+                      for (bx in 0 until wb) {
+                          var b = 0
                           for (bit in 0..7) {
-                              val x = byteX * 8 + bit
-                              if (x < width) {
-                                  val pixel = bitmap.getPixel(x, y)
-                                  val r = (pixel shr 16) and 0xFF
-                                  val g = (pixel shr 8) and 0xFF
-                                  val b = pixel and 0xFF
-                                  val luminance = (r * 0.299 + g * 0.587 + b * 0.114).toInt()
-                                  if (luminance < 128) {
-                                      currentByte = currentByte or (0x80 shr bit)
-                                  }
+                              val x = bx * 8 + bit
+                              if (x < w) {
+                                  val p = bitmap.getPixel(x, y)
+                                  val lum = (((p shr 16) and 0xFF) * 0.299 + ((p shr 8) and 0xFF) * 0.587 + (p and 0xFF) * 0.114).toInt()
+                                  if (lum < 128) b = b or (0x80 shr bit)
                               }
                           }
-                          imageBytes[byteIndex++] = currentByte.toByte()
+                          bytes[idx++] = b.toByte()
                       }
                   }
-                  return header + imageBytes + footer
+                  return header + bytes + footer
               }
 
               private fun sendRawTspl(ip: String, data: ByteArray) {
@@ -300,14 +298,9 @@ jobs:
                           out.flush()
                           out.close()
                           socket.close()
-                          withContext(Dispatchers.Main) {
-                              tvStatus.text = "Разпечатано успешно!"
-                              Toast.makeText(this@MainActivity, "Етикетът се принтира!", Toast.LENGTH_SHORT).show()
-                          }
+                          withContext(Dispatchers.Main) { tvStatus.text = "Готово! Изпратено към принтера." }
                       } catch (e: Exception) {
-                          withContext(Dispatchers.Main) {
-                              tvStatus.text = "Грешка при връзка: ${e.message}"
-                          }
+                          withContext(Dispatchers.Main) { tvStatus.text = "Грешка: ${e.message}" }
                       }
                   }
               }
@@ -316,6 +309,9 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+          cache-disabled: true
 
       - name: Build with Gradle
         run: gradle assembleDebug --no-daemon
