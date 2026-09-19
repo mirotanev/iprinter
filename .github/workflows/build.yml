@@ -20,11 +20,10 @@ jobs:
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
 
-          # 1. gradle.properties (Активира AndroidX)
+          # 1. gradle.properties
           cat << 'EOF' > gradle.properties
           android.useAndroidX=true
           android.enableJetifier=true
-          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           EOF
 
           # 2. settings.gradle
@@ -61,7 +60,7 @@ jobs:
           }
           EOF
 
-          # 4. app/build.gradle
+          # 4. app/build.gradle (minSdk 21 за максимална съвместимост)
           cat << 'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
@@ -74,15 +73,16 @@ jobs:
 
               defaultConfig {
                   applicationId "com.xprinter.directprint"
-                  minSdk 24
+                  minSdk 21
                   targetSdk 34
                   versionCode 1
                   versionName "1.0"
               }
 
               buildTypes {
-                  release {
+                  debug {
                       minifyEnabled false
+                      debuggable true
                   }
               }
               compileOptions {
